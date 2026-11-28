@@ -1,3 +1,4 @@
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @model SmileTrack_MVC.Models.Entities.Usuario
 @{
     Layout = "_Layout";
@@ -43,9 +44,14 @@
                               placeholder="Indica qué estabas haciendo, qué esperabas que ocurriera y qué mensaje o resultado apareció."></textarea>
                     <div class="char-counter">0 / 1000</div>
                 </div>
-                <div class="form-group">
-                    <label for="fileInput">Adjuntar evidencia (opcional)</label>
-                    <input id="fileInput" name="evidencia" type="file" accept=".pdf,.jpg,.jpeg,.png" aria-describedby="pqrEvidenciaAyuda">
+                <div class="form-group pqr-evidence">
+                    <p class="evidence-label">Adjuntar evidencia (opcional)</p>
+                    <button type="button" class="evidence-picker" id="fileUpload" aria-describedby="pqrEvidenciaAyuda fileInputError">
+                        <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+                        Elegir archivo
+                    </button>
+                    <div class="evidence-preview" id="fileUploadContent" aria-live="polite"></div>
+                    <input id="fileInput" name="evidencia" type="file" accept=".pdf,.jpg,.jpeg,.png" hidden>
                     <small id="pqrEvidenciaAyuda">PDF, JPG o PNG de hasta 5 MB. Oculta los datos de pacientes antes de adjuntar capturas.</small>
                 </div>
                 <div class="submit-section">

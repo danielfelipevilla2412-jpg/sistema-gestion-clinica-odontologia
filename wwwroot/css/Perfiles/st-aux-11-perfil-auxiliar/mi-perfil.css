@@ -246,3 +246,35 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+.aux-profile .profile-card {
+  max-width: 70rem;
+}
+.aux-profile .profile-header {
+  flex-wrap: wrap;
+}
+.aux-profile .profile-header .btn-edit {
+  margin-inline-start: auto;
+}
+.aux-profile .info-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.aux-profile .info-value {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.aux-profile .aux-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+[data-st-theme="dark"] .aux-profile :is(.profile-title, .btn-edit) {
+  color: var(--st-link);
+}
+[data-st-theme="dark"] .aux-profile .btn-edit:hover {
+  background: var(--st-raised);
+}
+@media (max-width: 680px) {
+  .aux-profile .info-grid { grid-template-columns: 1fr; }
+}

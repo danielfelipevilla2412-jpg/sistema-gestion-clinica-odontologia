@@ -457,3 +457,20 @@ img { max-width: 100%; height: auto; display: block; }
   }
   html { scroll-behavior: auto; }
 }
+
+@media screen {
+  [data-st-theme="dark"] .main :is(.info-readonly-note, .avatar-preview, .btn-upload) {
+    background: var(--st-raised);
+    color: var(--st-text);
+    border-color: var(--st-border);
+  }
+  [data-st-theme="dark"] .main .form-input:not(:disabled) {
+    background: var(--st-bg);
+    color: var(--st-text);
+    border-color: var(--st-border);
+  }
+  [data-st-theme="dark"] .main .btn-upload:hover {
+    background: var(--st-bg);
+    color: var(--st-link);
+  }
+}

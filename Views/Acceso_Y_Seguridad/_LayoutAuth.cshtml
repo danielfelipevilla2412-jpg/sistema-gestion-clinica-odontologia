@@ -16,6 +16,7 @@
 <html lang="es" class="light">
 <head>
     <meta charset="utf-8" />
+  @await Html.PartialAsync("~/Views/shared/_ThemeStartup.cshtml")
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="description" content="@(ViewData["Description"] ?? "Portal de Acceso y Seguridad de SmileTrack")" />
@@ -37,6 +38,7 @@
     <link rel="stylesheet" href="~/css/Acceso_Y_Seguridad/login/login.css" asp-append-version="true" />
 
     @await RenderSectionAsync("Styles", required: false)
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/theme.css")" asp-append-version="true" />
 </head>
 <body data-error-status="@(ViewData["ErrorStatus"] ?? 0)" class="antialiased">
 

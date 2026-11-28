@@ -136,38 +136,7 @@ NOTAS DE MANTENIMIENTO:
           <div class="password-section">
             <h3 class="card-title"><span class="material-symbols-outlined icon-card-title" aria-hidden="true">lock</span> <span data-i18n="profile.change_password">Cambiar contraseña</span></h3>
 
-            <form id="passwordForm" method="post" action="/acceso-y-seguridad/cambiar-contrasena" novalidate>
-              @Html.AntiForgeryToken()
-              <div class="form-group">
-                <label class="form-label" for="currentPassword">Contraseña actual</label>
-                <div class="input-with-icon">
-                  <input type="password" class="form-input" id="currentPassword" name="contrasenaActual" placeholder="••••••••" required
-                    aria-required="true">
-                  <button type="button" class="toggle-password" aria-label="Mostrar u ocultar contraseña actual"
-                    aria-pressed="false">👁</button>
-                </div>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="newPassword">Nueva contraseña</label>
-                <div class="input-with-icon">
-                  <input type="password" class="form-input" id="newPassword" name="nuevaContrasena" placeholder="••••••••" required
-                    aria-required="true" aria-describedby="passwordStrength">
-                  <button type="button" class="toggle-password" aria-label="Mostrar u ocultar nueva contraseña"
-                    aria-pressed="false">👁</button>
-                </div>
-                <div class="password-strength" id="passwordStrength" role="status" aria-live="polite"></div>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="confirmPassword">Confirmar nueva contraseña</label>
-                <div class="input-with-icon">
-                  <input type="password" class="form-input" id="confirmPassword" name="confirmarContrasena" placeholder="••••••••" required
-                    aria-required="true">
-                  <button type="button" class="toggle-password"
-                    aria-label="Mostrar u ocultar confirmación de contraseña" aria-pressed="false">👁</button>
-                </div>
-              </div>
-              <button type="submit" class="btn-primary">Actualizar contraseña</button>
-            </form>
+            <a href="@Url.Action("ChangePassword", "AccesoYSeguridad")" data-i18n="nav.item_cambiar_contrasena">Cambiar contraseña</a>
           </div>
         </div>
 

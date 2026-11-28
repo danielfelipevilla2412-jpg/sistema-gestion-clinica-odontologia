@@ -34,7 +34,38 @@ public class PerfilesController : Controller
         string? userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
         int.TryParse(userIdStr, out int userId);
         var usuario = await _context.Usuarios.Include(u => u.Rol).FirstOrDefaultAsync(u => u.IdUsuario == userId);
-        return View("~/Views/Perfiles/st-aux-11-perfil-auxiliar/mi-perfil.cshtml", usuario);
+        return usuario is null ? NotFound() : View("~/Views/Perfiles/st-aux-11-perfil-auxiliar/mi-perfil.cshtml", usuario);
+    }
+
+
+    [HttpPost]
+    [Authorize(Roles = "Auxiliar")]
+    [ValidateAntiForgeryToken]
+    [Route("perfiles/st-aux-11-perfil-auxiliar")]
+    public async Task<IActionResult> GuardarPerfilAuxiliar(string? nombre, string? apellidos, CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out int userId))
+            return Unauthorized();
+
+        var usuario = await _context.Usuarios.FirstOrDefaultAsync(u => u.IdUsuario == userId, cancellationToken);
+        if (usuario is null)
+            return NotFound();
+
+        nombre = nombre?.Trim();
+        apellidos = apellidos?.Trim();
+        if (string.IsNullOrEmpty(nombre) || nombre.Length > 100 ||
+            string.IsNullOrEmpty(apellidos) || apellidos.Length > 100)
+        {
+            ModelState.AddModelError(string.Empty, "Ingresa nombres y apellidos de hasta 100 caracteres.");
+            ViewData["EditarPerfil"] = true;
+            return View("~/Views/Perfiles/st-aux-11-perfil-auxiliar/mi-perfil.cshtml", usuario);
+        }
+
+        usuario.Nombre = nombre;
+        usuario.Apellidos = apellidos;
+        await _context.SaveChangesAsync(cancellationToken);
+        TempData["PerfilAuxiliarMensaje"] = "Datos personales actualizados.";
+        return RedirectToAction(nameof(Staux11PerfilAuxiliar));
     }
 
     [HttpGet]

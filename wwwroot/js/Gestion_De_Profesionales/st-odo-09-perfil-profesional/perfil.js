@@ -141,25 +141,6 @@ const getProfessionalIdFromDom = () => {
   return professionalId > 0 ? professionalId : null;
 };
 
-/**
- * Evalúa la fortaleza de una contraseña devolviendo 'weak', 'medium' o 'strong'.
- * @param {string} passwordText
- * @returns {string|null}
- */
-const evaluatePasswordStrengthLevel = (passwordText) => {
-  if (passwordText.length === 0) return null;
-
-  let strengthScore = 0;
-  if (passwordText.length >= 8) strengthScore++;
-  if (passwordText.length >= 12) strengthScore++;
-  if (/[a-z]/.test(passwordText) && /[A-Z]/.test(passwordText)) strengthScore++;
-  if (/\d/.test(passwordText)) strengthScore++;
-  if (/[^a-zA-Z0-9]/.test(passwordText)) strengthScore++;
-
-  if (strengthScore <= 2) return 'weak';
-  if (strengthScore <= 4) return 'medium';
-  return 'strong';
-};
 
 // ===================================================================
 // 4. COMUNICACIÓN CON LA API REST
@@ -239,100 +220,6 @@ const fetchProfessionalScheduleApi = async () => {
   }
 };
 
-/**
- * Envía la actualización de contraseña a la API.
- * @param {Event} event
- */
-const submitPasswordChangeApi = async (event) => {
-  event.preventDefault();
-
-  const currentPasswordElement = getElementByIdSafe('currentPassword');
-  const newPasswordElement = getElementByIdSafe('newPassword');
-  const confirmPasswordElement = getElementByIdSafe('confirmPassword');
-
-  const currentPasswordValue = currentPasswordElement?.value;
-  const newPasswordValue = newPasswordElement?.value;
-  const confirmPasswordValue = confirmPasswordElement?.value;
-
-  if (window.ValidationUtils) {
-    if (currentPasswordElement) window.ValidationUtils.clearError(currentPasswordElement);
-    if (newPasswordElement) window.ValidationUtils.clearError(newPasswordElement);
-    if (confirmPasswordElement) window.ValidationUtils.clearError(confirmPasswordElement);
-  }
-
-  let isFormValid = true;
-
-  if (currentPasswordValue?.length < 6) {
-    if (window.ValidationUtils && currentPasswordElement) {
-      window.ValidationUtils.showError(currentPasswordElement, null, 'La contraseña actual debe tener al menos 6 caracteres');
-    }
-    isFormValid = false;
-  }
-
-  if (newPasswordValue?.length < 8) {
-    if (window.ValidationUtils && newPasswordElement) {
-      window.ValidationUtils.showError(newPasswordElement, null, 'La nueva contraseña debe tener al menos 8 caracteres');
-    }
-    isFormValid = false;
-  }
-
-  if (newPasswordValue !== confirmPasswordValue) {
-    if (window.ValidationUtils && confirmPasswordElement) {
-      window.ValidationUtils.showError(confirmPasswordElement, null, 'Las nuevas contraseñas no coinciden');
-    }
-    isFormValid = false;
-  }
-
-  if (currentPasswordValue === newPasswordValue) {
-    if (window.ValidationUtils && newPasswordElement) {
-      window.ValidationUtils.showError(newPasswordElement, null, 'La nueva contraseña debe ser diferente a la actual');
-    }
-    isFormValid = false;
-  }
-
-  if (!isFormValid) {
-    window.ToastService?.warning('⚠️ Verifique los campos resaltados en rojo');
-    return;
-  }
-
-  const updateSubmitButton = event.target.querySelector('.btn-primary');
-  if (updateSubmitButton) {
-    updateSubmitButton.disabled = true;
-    updateSubmitButton.textContent = '⏳ Actualizando...';
-  }
-
-  try {
-    const csrfToken = event.target.querySelector('input[name="__RequestVerificationToken"]')?.value;
-    const response = await fetchWithTimeout('/acceso-y-seguridad/cambiar-contrasena/api', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {})
-      },
-      body: JSON.stringify({
-        ContrasenaActual: currentPasswordValue,
-        NuevaContrasena: newPasswordValue,
-        ConfirmarContrasena: confirmPasswordValue
-      })
-    });
-
-    const payload = await response.json().catch(() => null);
-    if (!response.ok || payload?.success !== true) {
-      throw new Error(payload?.message || 'No fue posible confirmar el cambio de contraseña.');
-    }
-
-    window.ToastService?.success(payload.message || 'Contraseña actualizada. Inicia sesión nuevamente.');
-    window.setTimeout(() => { window.location.href = '/acceso-y-seguridad/login'; }, 900);
-  } catch (error) {
-    window.ToastService?.error(error.message || 'No fue posible cambiar la contraseña.');
-    if (updateSubmitButton) {
-      updateSubmitButton.disabled = false;
-      updateSubmitButton.textContent = 'Actualizar contraseña';
-    }
-  }
-};
 
 /**
  * Guarda los cambios de horario en la API.
@@ -689,20 +576,6 @@ const closeScheduleEditorModal = () => {
   lastFocusedElement = null;
 };
 
-/**
- * Muestra u oculta el texto de una contraseña.
- * @param {string} inputId
- * @param {HTMLButtonElement} toggleButton
- */
-const togglePasswordVisibilityState = (inputId, toggleButton) => {
-  const passwordInput = getElementByIdSafe(inputId);
-  if (!passwordInput) return;
-
-  const isPasswordHidden = passwordInput.type === 'password';
-  passwordInput.type = isPasswordHidden ? 'text' : 'password';
-  toggleButton.textContent = isPasswordHidden ? '🙈' : '👁';
-  toggleButton.setAttribute('aria-pressed', String(isPasswordHidden));
-};
 
 // ===================================================================
 // 7. LISTENERS DE EVENTOS E INICIALIZACIÓN
@@ -713,49 +586,6 @@ const togglePasswordVisibilityState = (inputId, toggleButton) => {
 // esa lógica aquí: al enlazar dos veces los mismos elementos, el botón abre y
 // vuelve a cerrar el menú en el mismo clic.
 
-/**
- * Configura los event listeners del formulario de cambio de contraseña.
- */
-const initPasswordChangeForm = () => {
-  const passwordFormElement = getElementByIdSafe('passwordForm');
-  const newPasswordInput = getElementByIdSafe('newPassword');
-
-  document.querySelectorAll('.toggle-password').forEach(button => {
-    button.addEventListener('click', () => {
-      const targetInputId = button.closest('.input-with-icon')?.querySelector('.form-input')?.id;
-      if (targetInputId) togglePasswordVisibilityState(targetInputId, button);
-    });
-  });
-
-  if (newPasswordInput) {
-    newPasswordInput.addEventListener('input', debounce(() => {
-      const passwordText = newPasswordInput.value;
-      const strengthIndicatorElement = getElementByIdSafe('passwordStrength');
-
-      if (!strengthIndicatorElement) return;
-
-      if (passwordText.length === 0) {
-        strengthIndicatorElement.className = 'password-strength';
-        strengthIndicatorElement.textContent = '';
-        return;
-      }
-
-      const strengthLevel = evaluatePasswordStrengthLevel(passwordText);
-      strengthIndicatorElement.className = `password-strength ${strengthLevel}`;
-
-      const strengthLabelsMap = {
-        weak: '🔴 Débil',
-        medium: '🟡 Media',
-        strong: '🟢 Fuerte'
-      };
-      strengthIndicatorElement.textContent = strengthLabelsMap[strengthLevel] || '';
-    }, 150));
-  }
-
-  if (passwordFormElement) {
-    passwordFormElement.addEventListener('submit', submitPasswordChangeApi);
-  }
-};
 
 /**
  * Inicializa los eventos del modal de edición de horario.
@@ -835,7 +665,6 @@ const initCredentialFilePicker = () => {
 };
 
 const init = async () => {
-  initPasswordChangeForm();
   initScheduleModalEvents();
   initCredentialFilePicker();
 

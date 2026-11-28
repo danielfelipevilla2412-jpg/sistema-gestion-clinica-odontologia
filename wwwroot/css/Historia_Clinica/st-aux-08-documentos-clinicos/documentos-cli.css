@@ -552,3 +552,27 @@ button { font-family: inherit; cursor: pointer; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+@media screen {
+  [data-st-theme="dark"] .main .drop-zone {
+    --drop-bg: var(--st-bg);
+    --drop-border: var(--st-border);
+    --drop-hover: var(--st-raised);
+    --drop-active: #253e61;
+    color: var(--st-text);
+    transition-property: border-color;
+  }
+  [data-st-theme="dark"] .main .drop-zone:is(:hover, :focus-visible, .dragover) {
+    border-color: var(--st-link);
+  }
+  [data-st-theme="dark"] .main .drop-zone:focus-visible {
+    outline: 2px solid var(--st-link);
+    outline-offset: 2px;
+  }
+  [data-st-theme="dark"] .main .drop-zone.has-file {
+    background: #17392e;
+    border-color: #70ad90;
+    color: #a5e7c9;
+  }
+  [data-st-theme="dark"] .main .doc-item:hover { background: var(--st-raised); }
+}

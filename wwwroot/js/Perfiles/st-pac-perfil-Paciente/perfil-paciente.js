@@ -61,8 +61,7 @@ const camposEditables = [
   'nombre', 'genero', 'estadoCivil',
   'email', 'telefono', 'direccion', 'ciudad', 'departamento',
   'emergNombre', 'emergParentesco', 'emergTelefono',
-  'eps', 'poliza', 'afiliacion',
-  'passActual', 'passNueva', 'passConfirm'
+  'eps', 'poliza', 'afiliacion'
 ];
 
 // Campos bloqueados siempre (solo lectura absoluta)
@@ -125,29 +124,6 @@ function cancelarEdicion() {
 }
 
 function guardarCambios() {
-  // Validar contraseña si se está cambiando
-  const passActual = safeGetElement('passActual')?.value || '';
-  const passNueva = safeGetElement('passNueva')?.value || '';
-  const passConfirm = safeGetElement('passConfirm')?.value || '';
-
-  if (passNueva || passConfirm) {
-    if (!passActual) {
-      showToast(t('pac_profile.toast_need_current_password', 'Ingresa tu contraseña actual'), 'error');
-      safeGetElement('passActual')?.focus();
-      return;
-    }
-    if (passNueva.length < 8) {
-      showToast(t('pac_profile.toast_password_min', 'La nueva contraseña debe tener al menos 8 caracteres'), 'error');
-      safeGetElement('passNueva')?.focus();
-      return;
-    }
-    if (passNueva !== passConfirm) {
-      showToast(t('pac_profile.toast_password_mismatch', 'Las contraseñas no coinciden'), 'error');
-      safeGetElement('passConfirm')?.focus();
-      return;
-    }
-  }
-
   // Validar email
   const email = safeGetElement('email')?.value?.trim() || '';
   if (email && !email.includes('@')) {
@@ -207,12 +183,6 @@ function desactivarEdicion() {
   [...camposEditables, ...camposBloqueados].forEach(id => {
     const el = safeGetElement(id);
     if (el) el.disabled = true;
-  });
-
-  // Limpiar contraseñas
-  ['passActual', 'passNueva', 'passConfirm'].forEach(id => {
-    const el = safeGetElement(id);
-    if (el) el.value = '';
   });
 
   // Quitar highlight de cards
@@ -282,25 +252,7 @@ function initAvatarUpload() {
 // ═══════════════════════════════════════════════════════════════════
 //  TOGGLE CONTRASEÑA
 // ═══════════════════════════════════════════════════════════════════
-function togglePass(inputId, btn) {
-  const input = safeGetElement(inputId);
-  if (!input || input.disabled) return;
 
-  const icon = btn.querySelector('.material-symbols-outlined');
-  const mostrar = input.type === 'password';
-
-  input.type = mostrar ? 'text' : 'password';
-  if (icon) icon.textContent = mostrar ? 'visibility_off' : 'visibility';
-  btn.setAttribute('aria-label', translate(mostrar ? 'pac_profile.hide_password' : 'pac_profile.show_password', mostrar ? 'Ocultar contraseña' : 'Mostrar contraseña'));
-}
-
-function initPasswordToggles() {
-  document.querySelectorAll('.btn-eye').forEach(btn => {
-    const target = btn.getAttribute('data-target');
-    if (!target) return;
-    btn.addEventListener('click', () => togglePass(target, btn));
-  });
-}
 
 // ═══════════════════════════════════════════════════════════════════
 //  FUNCIÓN PRINCIPAL DE INICIALIZACIÓN
@@ -309,7 +261,6 @@ const init = () => {
   // El sidebar, hamburger, overlay y grupos de navegación los gestiona
   // el sidebar.js compartido del layout (_Layout.cshtml).
   initAvatarUpload();
-  initPasswordToggles();
 
   // Botones del header
   const btnEditar = safeGetElement('btnEditar');

@@ -326,7 +326,7 @@ const fileInput = document.getElementById('fileInput');
 fileInput?.addEventListener('click', event => event.stopPropagation());
 fileUploadContainer?.addEventListener('click', () => fileInput?.click());
 fileUploadContainer?.addEventListener('keydown', event => {
-    if (event.target === fileUploadContainer && ['Enter', ' '].includes(event.key)) {
+    if (fileUploadContainer.tagName !== 'BUTTON' && event.target === fileUploadContainer && ['Enter', ' '].includes(event.key)) {
         event.preventDefault();
         fileInput?.click();
     }
@@ -341,6 +341,10 @@ function resetFileUpload(clearInput = true) {
 
     const content = document.getElementById('fileUploadContent');
     if (!content) return;
+    if (fileUploadContainer?.tagName === 'BUTTON') {
+        content.replaceChildren();
+        return;
+    }
     content.innerHTML = `
         <span class="material-symbols-outlined" aria-hidden="true">cloud_upload</span>
         <div data-i18n="pac_pqr.upload_hint">Haz clic para adjuntar un archivo (PDF, JPG, PNG — máx. 5 MB)</div>
@@ -372,6 +376,8 @@ fileInput?.addEventListener('change', function () {
         content.querySelector('.file-remove')?.addEventListener('click', event => {
             event.stopPropagation();
             resetFileUpload();
+            showPqrFieldError(fileInput, '');
+            fileUploadContainer.focus();
         });
     }
 });

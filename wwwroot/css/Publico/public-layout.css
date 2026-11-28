@@ -174,3 +174,51 @@ body.public-site > footer .text-slate-500 {
     font-size: 12px;
   }
 }
+
+@media screen {
+  [data-st-theme="dark"] .public-site #site-header,
+  [data-st-theme="dark"] .public-site .lang-switcher-fixed {
+    background: var(--st-panel);
+    border-color: var(--st-border);
+  }
+
+  [data-st-theme="dark"] .public-site .lang-btn:not([aria-pressed="true"]) {
+    color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .public-site #site-header :is(.public-nav-links a, .public-mobile-menu a):hover {
+    color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .public-site #main-content :is(
+    .text-gray-700, .text-gray-800, .text-gray-900
+  ),
+  [data-st-theme="dark"] .public-site #main-content.text-gray-800 {
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] .public-site #main-content :is(.text-gray-500, .text-gray-600) {
+    color: var(--st-muted);
+  }
+
+  [data-st-theme="dark"] .public-site #main-content :is(.text-blue-600, .text-blue-800) {
+    color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .public-site #main-content :is(.bg-gray-50, .bg-blue-50) {
+    background: var(--st-raised);
+  }
+
+  [data-st-theme="dark"] .public-site #main-content :is(.border-gray-200, .border-slate-200) {
+    border-color: var(--st-border);
+  }
+
+  [data-st-theme="dark"] .public-site #main-content :is(.text-amber-700, .text-amber-900) {
+    color: #ffd491;
+  }
+
+  [data-st-theme="dark"] .public-site #main-content .bg-amber-50 {
+    background: #392b17;
+    border-color: #97703a;
+  }
+}

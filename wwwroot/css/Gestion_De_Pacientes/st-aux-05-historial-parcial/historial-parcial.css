@@ -265,3 +265,22 @@ img { max-width: 100%; height: auto; display: block; }
 .historial-aux .historial-clinico-resumen:not(.tiene-alerta) .alerta-medica-title { color: #203b6d; }
 .historial-aux .historial-clinico-resumen:not(.tiene-alerta) .alerta-medica-title .material-symbols-outlined,
 .historial-aux .historial-clinico-resumen:not(.tiene-alerta) .allergy-icon { display: none; }
+
+@media screen {
+  [data-st-theme="dark"] .historial-aux {
+    --alert-amber-bg: #382b1b;
+    --alert-amber-border: #976a37;
+    --alert-amber-text: #ffd491;
+  }
+  [data-st-theme="dark"] .historial-aux .historial-clinico-resumen:not(.tiene-alerta) {
+    background: var(--st-panel);
+    border-color: var(--st-border);
+  }
+  [data-st-theme="dark"] .historial-aux .historial-clinico-resumen:not(.tiene-alerta) .alerta-medica-title {
+    color: var(--st-link);
+  }
+  [data-st-theme="dark"] .historial-aux .history-details-row td { background: var(--st-raised); }
+  [data-st-theme="dark"] .historial-aux .skeleton-cell {
+    background-image: linear-gradient(90deg, var(--st-panel) 25%, var(--st-raised) 50%, var(--st-panel) 75%);
+  }
+}

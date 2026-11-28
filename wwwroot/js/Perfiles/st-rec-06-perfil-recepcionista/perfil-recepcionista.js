@@ -57,8 +57,7 @@ const profileStorage = {
       bio: 'Encargada de recepción en SmileTrack. Apasionada por la atención al paciente.',
       preferences: {
         email: true,
-        sms: false,
-        dark: false
+        sms: false
       }
     };
   },
@@ -211,60 +210,12 @@ const initProfileForm = () => {
   }
 };
 
-// Inicializa formulario de cambio de contraseña
-const initPasswordForm = () => {
-  const form = safeGetElement('passwordForm');
-  if (!form) return;
-
-  // Validación en tiempo real
-  form.querySelectorAll('input').forEach(input => {
-    input.addEventListener('blur', () => validateField(input));
-    input.addEventListener('input', () => {
-      if (input.classList.contains('error')) validateField(input);
-    });
-  });
-
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-
-    const current = safeGetElement('currentPassword');
-    const newPass = safeGetElement('newPassword');
-    const confirm = safeGetElement('confirmPassword');
-
-    if (!current?.value || !newPass?.value || !confirm?.value) {
-      showToast('Completa todos los campos', 'warning');
-      return;
-    }
-
-    if (newPass.value.length < 8) {
-      newPass.classList.add('error');
-      safeGetElement('error-newPassword')?.classList.add('visible');
-      showToast('La contraseña debe tener al menos 8 caracteres', 'error');
-      return;
-    }
-
-    if (newPass.value !== confirm.value) {
-      confirm.classList.add('error');
-      safeGetElement('error-confirmPassword')?.classList.add('visible');
-      showToast('Las contraseñas no coinciden', 'error');
-      return;
-    }
-
-    // Limpia campos después de éxito
-    [current, newPass, confirm].forEach(input => {
-      if (input) input.value = '';
-    });
-
-    showToast('Contraseña actualizada correctamente', 'success');
-  });
-};
 
 // Inicializa toggle switches de preferencias con persistencia
 const initToggles = () => {
   const toggles = {
     toggleEmail: 'email',
-    toggleSMS: 'sms',
-    toggleDark: 'dark'
+    toggleSMS: 'sms'
   };
 
   const profile = profileStorage.load();
@@ -340,7 +291,6 @@ const init = () => {
   // El menú móvil (hamburger/overlay/sidebar) lo inicializa shared/sidebar.js del layout.
   initPhotoUpload();
   initProfileForm();
-  initPasswordForm();
   initToggles();
   initDangerActions();
 };

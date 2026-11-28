@@ -280,3 +280,44 @@ td.td-doctor { font-weight: 600; font-size: .82rem; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+@media screen {
+  [data-st-theme="dark"] .patient-appointments :is(.agenda-section, .filters-section, .modal) {
+    background: var(--st-panel);
+    border-color: var(--st-border);
+    color: var(--st-text);
+  }
+  [data-st-theme="dark"] .patient-appointments :is(.tab-btn, .pill-hora, .btn-secondary) {
+    background: var(--st-bg);
+    border-color: var(--st-border);
+    color: var(--st-link);
+  }
+  [data-st-theme="dark"] .patient-appointments :is(thead tr, .tab-btn.active, .tab-btn:hover, .modal-close:hover, .btn-secondary:hover),
+  [data-st-theme="dark"] .patient-appointments tbody tr:is(:hover, :focus-within, .row-active) > td {
+    background: var(--st-raised);
+  }
+  [data-st-theme="dark"] .patient-appointments :is(tbody tr, td, .tab-btn, .btn-secondary, .modal-close) {
+    transition-property: transform, box-shadow;
+  }
+  [data-st-theme="dark"] .patient-appointments td.actions-cell {
+    background-clip: padding-box;
+  }
+}
+
+@media screen {
+  [data-st-theme="dark"] .patient-appointments .table-tabs {
+    background: var(--st-panel);
+    border-color: var(--st-border);
+  }
+
+  [data-st-theme="dark"] .patient-appointments .table-tabs .tab-btn.active {
+    background: var(--st-raised);
+    border-color: var(--st-link);
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] .patient-appointments .table-tabs .tab-btn:focus-visible {
+    outline: 2px solid var(--st-link);
+    outline-offset: -2px;
+  }
+}

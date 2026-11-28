@@ -304,3 +304,35 @@
 .main-content .prep-storage { color: #485773; font-size: .9em; }
 .main-content .prep-status:empty { display: none; }
 .main-content .prep-patient-alert { border-inline-start: 3px solid #b45309; }
+
+@media screen {
+  [data-st-theme="dark"] .main-content :is(.prep-group, .checklist-item, .custom-checkbox) {
+    border-color: var(--st-border);
+  }
+  [data-st-theme="dark"] .main-content .checklist-item {
+    background: var(--st-bg);
+    color: var(--st-text);
+    transition-property: border-color;
+  }
+  [data-st-theme="dark"] .main-content .checklist-item:is(:hover, :focus-within, :has(input:checked)) {
+    background: var(--st-raised);
+    border-color: var(--st-link);
+  }
+  [data-st-theme="dark"] .main-content :is(.prep-storage, .prep-skip) {
+    color: var(--st-muted);
+  }
+  [data-st-theme="dark"] .main-content .alert-card-title { color: #ffd491; }
+  [data-st-theme="dark"] .main-content #prepProgress {
+    appearance: none;
+    height: 8px;
+    border: 0;
+    border-radius: 4px;
+    background: var(--st-raised);
+  }
+  [data-st-theme="dark"] .main-content #prepProgress::-webkit-progress-bar {
+    background: var(--st-raised);
+    border-radius: 4px;
+  }
+  [data-st-theme="dark"] .main-content #prepProgress::-webkit-progress-value { background: var(--success); }
+  [data-st-theme="dark"] .main-content #prepProgress::-moz-progress-bar { background: var(--success); }
+}

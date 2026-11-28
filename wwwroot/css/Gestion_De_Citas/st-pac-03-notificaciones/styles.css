@@ -212,3 +212,18 @@ NOTAS DE MANTENIMIENTO:
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+@media screen {
+  [data-st-theme="dark"] .patient-notifications :is(.notification-card, .modal, .chip, .btn-secondary) {
+    background: var(--st-panel);
+    border-color: var(--st-border);
+    color: var(--st-text);
+  }
+  [data-st-theme="dark"] .patient-notifications :is(
+    .notification-card:hover, .notification-card:focus-within, .chip.chip--active,
+    .chip:hover, .btn-secondary:hover, .btn-icon:hover, .modal-close:hover
+  ) { background: var(--st-raised); color: var(--st-link); }
+  [data-st-theme="dark"] .patient-notifications :is(.notification-card, .chip, .btn-secondary, .btn-icon) {
+    transition-property: transform, box-shadow;
+  }
+}

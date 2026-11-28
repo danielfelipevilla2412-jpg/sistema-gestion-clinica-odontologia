@@ -13,6 +13,7 @@
 <html lang="es" class="scroll-smooth">
 <head>
     <meta charset="utf-8" />
+  @await Html.PartialAsync("~/Views/shared/_ThemeStartup.cshtml")
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="index, follow" />
     <meta name="description" content="@(ViewData["Description"] ?? "SmileTrack es la plataforma de gestión odontológica para agendar citas, consultar tratamientos y contactar especialistas.")" />
@@ -43,6 +44,7 @@
     <link rel="stylesheet" href="~/css/Publico/public-layout.css" asp-append-version="true" />
 
     @await RenderSectionAsync("Styles", required: false)
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/theme.css")" asp-append-version="true" />
 </head>
 <body class="public-site bg-[#f9f9ff] text-[#021c3a] font-['DM_Sans',sans-serif] overflow-x-hidden antialiased">
 

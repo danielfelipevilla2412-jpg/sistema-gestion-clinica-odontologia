@@ -336,3 +336,25 @@ img { max-width: 100%; height: auto; display: block; }
 @media (max-width: 520px) {
   .asistencia-procedimiento .asistencia-facts { grid-template-columns: minmax(0, 1fr); }
 }
+
+@media screen {
+  [data-st-theme="dark"] .asistencia-procedimiento {
+    --alert-amber-bg: #382b1b;
+    --alert-amber-border: #976a37;
+    --alert-amber-text: #ffd491;
+    --pill-azul: #233b60;
+    --pill-azul-text: #b8d6ff;
+    --pill-verde: #17392e;
+    --pill-verde-text: #a5e7c9;
+    --pill-gris: var(--st-raised);
+    --pill-gris-text: var(--st-muted);
+  }
+  [data-st-theme="dark"] .asistencia-procedimiento .status-card .status-badge[data-status] {
+    background: var(--st-raised);
+    border-color: var(--st-border);
+    color: var(--st-text);
+  }
+  [data-st-theme="dark"] .asistencia-procedimiento .procedure-pill {
+    transition-property: border-color, box-shadow;
+  }
+}

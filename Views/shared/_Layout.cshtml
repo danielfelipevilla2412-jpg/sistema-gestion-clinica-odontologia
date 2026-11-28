@@ -29,6 +29,7 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
+  @await Html.PartialAsync("~/Views/shared/_ThemeStartup.cshtml")
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
     @if (ViewData["Description"] is string description)
@@ -72,6 +73,7 @@
 
     @* Estilos de impresión: solo se aplican al imprimir *@
     <link rel="stylesheet" href="~/css/shared/print.css" media="print" asp-append-version="true" />
+  <link rel="stylesheet" href="@Url.Content("~/css/shared/theme.css")" asp-append-version="true" />
 </head>
 
 <body>

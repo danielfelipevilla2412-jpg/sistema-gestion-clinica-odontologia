@@ -485,3 +485,15 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+@media screen {
+  [data-st-theme="dark"] .main .panel-rendimiento {
+    background: var(--st-panel);
+    color: var(--st-text);
+    border-color: var(--st-border);
+  }
+  [data-st-theme="dark"] .main :is(.quick-action:hover, .quick-action-icon) {
+    background: var(--st-raised);
+    color: var(--st-link);
+  }
+}

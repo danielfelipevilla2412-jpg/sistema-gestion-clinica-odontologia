@@ -371,3 +371,27 @@ img { max-width: 100%; height: auto; display: block; }
   .readonly-fields textarea { overflow: visible; resize: none; }
   a { color: inherit; text-decoration: none; }
 }
+
+@media screen {
+  html[data-st-theme="dark"] .main.patient-history-main {
+    background: var(--st-bg);
+    color: var(--st-text);
+    --panel: var(--st-panel);
+    --panel-soft: var(--st-raised);
+    --line: var(--st-border);
+    --text-soft: var(--st-muted);
+    --brand-dark: var(--st-link);
+  }
+  [data-st-theme="dark"] .patient-history-main :is(
+    .perfil-paciente-header, .odontogram-widget, .record-card, .readonly-form-card,
+    .readonly-card-header, .readonly-document-list, .record-item, .sidebar-card,
+    .appointment-card-mini, .modal
+  ) { background: var(--st-panel); color: var(--st-text); border-color: var(--st-border); }
+  [data-st-theme="dark"] .patient-history-main :is(
+    .record-item:hover, .record-item:focus-within, .download-btn:hover, .readonly-fields textarea,
+    .readonly-badge, .btn-secondary, .btn-secondary:hover, .modal-close:hover
+  ) { background: var(--st-raised); color: var(--st-link); border-color: var(--st-border); }
+  [data-st-theme="dark"] .patient-history-main .record-item {
+    transition-property: transform, box-shadow;
+  }
+}

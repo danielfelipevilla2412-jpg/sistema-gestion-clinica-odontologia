@@ -2878,8 +2878,11 @@ private static string InferirTipoServicio(string? nombreServicio)
         if (!string.IsNullOrWhiteSpace(search))
         {
             var texto = search.Trim();
+            var nombreBuscado = string.Join(" ", texto.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
             pacientesQuery = pacientesQuery.Where(p =>
-                p.Nombres.Contains(texto) || p.Apellidos.Contains(texto) || p.Documento.Contains(texto) ||
+                p.Nombres.Contains(texto) || p.Apellidos.Contains(texto) ||
+                (p.Nombres.Trim() + " " + p.Apellidos.Trim()).Contains(nombreBuscado) ||
+                p.Documento.Contains(texto) ||
                 (p.Correo != null && p.Correo.Contains(texto)) ||
                 _context.Citas.Any(c => c.IdPaciente == p.IdPaciente &&
                     ((c.Notas != null && c.Notas.Contains(texto)) ||

@@ -15,3 +15,14 @@
 .apoyo-table-scroll summary { cursor: pointer; }
 .apoyo-badge { display: inline-block; border-radius: 999px; background: #eef4ff; color: #203b6d; padding: .2rem .55rem; }
 .apoyo-alert { background: #fff0ed; color: #922925; font-weight: 650; }
+
+@media screen {
+  [data-st-theme="dark"] .agenda-apoyo :is(.apoyo-message, .apoyo-badge) {
+    background: var(--st-raised);
+    color: var(--st-text);
+  }
+  [data-st-theme="dark"] .agenda-apoyo .apoyo-alert {
+    background: #3c2527;
+    color: #ffccc2;
+  }
+}

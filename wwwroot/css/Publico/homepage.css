@@ -815,3 +815,47 @@ body.public-site #main-content {
     transition-duration: 0.01ms !important;
   }
 }
+
+@media screen {
+  html[data-st-theme="dark"] .public-home {
+    --home-primary-rgb: 108, 166, 255;
+    --home-primary: var(--st-link);
+    --home-primary-dark: #c0d9ff;
+    --home-primary-light: var(--st-raised);
+    --home-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  }
+
+  [data-st-theme="dark"] .public-home .home-hero {
+    background: radial-gradient(ellipse at 82% 43%, #233e65, transparent 52%),
+      linear-gradient(115deg, var(--st-bg), var(--st-panel));
+  }
+
+  [data-st-theme="dark"] .public-home :is(
+    .home-hero-badge, .home-trust-strip, .home-journey-card,
+    .home-service-card, .home-empty-state, .home-button-secondary, .home-button-light
+  ) {
+    background: var(--st-panel);
+    border-color: var(--st-border);
+  }
+
+  [data-st-theme="dark"] .public-home .home-journey {
+    background: radial-gradient(ellipse at 100% 0%, var(--st-raised), var(--st-bg) 60%);
+  }
+
+  [data-st-theme="dark"] .public-home .home-tooth-art {
+    background: radial-gradient(circle at 34% 26%, #354f75, var(--st-panel) 75%);
+  }
+
+  [data-st-theme="dark"] .public-home .home-journey-number { color: #7996bd; }
+
+  [data-st-theme="dark"] .public-home .home-steps {
+    background: linear-gradient(120deg, #102340, #1c3d69);
+  }
+
+  [data-st-theme="dark"] .public-home .home-button-primary { background: #1c51ab; }
+  [data-st-theme="dark"] .public-home .home-button-primary:hover { background: #174383; }
+
+  [data-st-theme="dark"] .public-home :is(.home-button-secondary, .home-button-light):hover {
+    background: var(--st-raised);
+  }
+}

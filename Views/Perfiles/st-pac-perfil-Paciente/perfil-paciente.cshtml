@@ -340,35 +340,7 @@
           <span class="material-symbols-outlined card-icon" aria-hidden="true">key</span>
           <span data-i18n="pac_profile.security">Seguridad</span>
         </h2>
-        <div class="form-grid form-grid--single">
-          <div class="form-group">
-            <label class="form-label" for="passActual" data-i18n="pac_profile.current_password">Contraseña actual</label>
-            <div class="pass-wrap">
-              <input class="form-input" id="passActual" type="password" placeholder="••••••••" disabled />
-              <button type="button" class="btn-eye" data-target="passActual" aria-label="Mostrar contraseña" data-i18n-aria-label="pac_profile.show_password">
-                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
-              </button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="passNueva" data-i18n="pac_profile.new_password">Nueva contraseña</label>
-            <div class="pass-wrap">
-              <input class="form-input" id="passNueva" type="password" placeholder="Mínimo 8 caracteres" data-i18n-ph="pac_profile.new_password_ph" disabled />
-              <button type="button" class="btn-eye" data-target="passNueva" aria-label="Mostrar contraseña" data-i18n-aria-label="pac_profile.show_password">
-                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
-              </button>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="passConfirm" data-i18n="common.confirm_password">Confirmar contraseña</label>
-            <div class="pass-wrap">
-              <input class="form-input" id="passConfirm" type="password" placeholder="Repite la contraseña" data-i18n-ph="pac_profile.confirm_password_ph" disabled />
-              <button type="button" class="btn-eye" data-target="passConfirm" aria-label="Mostrar contraseña" data-i18n-aria-label="pac_profile.show_password">
-                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <a href="@Url.Action("ChangePassword", "AccesoYSeguridad")" data-i18n="nav.item_cambiar_contrasena">Cambiar contraseña</a>
       </div>
 
     </div>

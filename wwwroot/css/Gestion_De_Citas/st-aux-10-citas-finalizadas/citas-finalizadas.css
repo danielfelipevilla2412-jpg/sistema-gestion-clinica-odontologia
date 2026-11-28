@@ -422,3 +422,18 @@ img { max-width: 100%; height: auto; display: block; }
   background: #fff;
 }
 .finalized-page .finalized-empty p { margin: 0 0 .65rem; }
+
+@media screen {
+  [data-st-theme="dark"] .finalized-page :is(.finalized-empty, .table-wrap) {
+    background: var(--st-panel);
+    border-color: var(--st-border);
+    color: var(--st-text);
+  }
+  [data-st-theme="dark"] .finalized-page :is(.tab-btn.active, .btn-export) {
+    color: var(--st-link);
+  }
+  [data-st-theme="dark"] .finalized-page .finalized-filter[aria-pressed="true"] {
+    background: var(--st-raised);
+    border-color: var(--st-link);
+  }
+}

@@ -1413,3 +1413,103 @@ a { text-decoration: none; }
 .card-step--step3 { background: #8b5cf6; }
 .card-step--step4 { background: #4f46e5; }
 .card-step--step5 { background: #10b981; }
+
+@media screen {
+  html[data-st-theme="dark"] .main.clinical-main {
+    --panel: var(--st-panel);
+    --panel-soft: var(--st-raised);
+    --line: var(--st-border);
+    --text-soft: var(--st-muted);
+    --brand: #77aeff;
+    --brand-dark: var(--st-link);
+    --brand-soft: var(--st-raised);
+    --primary-light: var(--st-raised);
+    --shadow: 0 6px 18px rgb(0 0 0 / 24%);
+    background: var(--st-bg);
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] .clinical-main :is(
+    .patient-summary-card, .empty-patient-card, .clinical-section-tabs,
+    .form-card, .overview-item, .history-workspace, .tooth-history-dialog,
+    .cie10-dropdown, .bottom-form-actions
+  ) {
+    background: var(--st-panel);
+    border-color: var(--st-border);
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] .clinical-main :is(
+    .card-header, .empty-avatar, .alert-pill, .audit-pill, .status-pill--neutral,
+    .hc-badge, .required-chip, .check-option, .diagnostico-chip,
+    .signature-box, .file-item:not(.dark), .pending-file, .upload-box,
+    .consent-row, .odontogram-history, .history-tooth-status
+  ) {
+    background: var(--st-raised);
+    border-color: var(--st-border);
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] .clinical-main :is(.field-group label, .tab-item) {
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] .clinical-main :is(.field-group small, .diagnostico-chip button) {
+    color: var(--st-muted);
+  }
+
+  [data-st-theme="dark"] .clinical-main :is(
+    .soft-btn, .secondary-btn, .mini-btn, .cie10-option,
+    .patient-search-result, .hist-note-action
+  ) {
+    background: var(--st-bg);
+    border-color: var(--st-border);
+    color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .clinical-main :is(
+    .soft-btn, .secondary-btn, .mini-btn, .cie10-option, .patient-search-result
+  ):is(:hover, :focus-visible),
+  [data-st-theme="dark"] .clinical-main .cie10-option[aria-selected="true"] {
+    background: var(--st-raised);
+    border-color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .clinical-main :is(
+    .tab-item.active, .check-option:has(input:checked), .upload-box.dragover
+  ) {
+    background: #243c60;
+    border-color: var(--st-link);
+    color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .clinical-main :is(
+    .field-group, .clinical-note-form, .patient-search-controls, .timeline-controls
+  ) :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+    background: var(--st-bg);
+    border-color: var(--st-border);
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] .clinical-main :is(
+    .field-group, .clinical-note-form, .patient-search-controls, .timeline-controls
+  ) :is(input, textarea, select):focus-visible {
+    border-color: var(--st-link);
+    outline: 1px solid var(--st-link);
+  }
+
+  [data-st-theme="dark"] .clinical-main :is(
+    .active-badge, .signature-confirmed, .status-pill:not(.status-pill--neutral),
+    .timeline-categories button.active
+  ) {
+    background: #18372e;
+    border-color: #467a67;
+    color: #a5e7c9;
+  }
+
+  [data-st-theme="dark"] .clinical-main :is(.file-remove-btn, .hist-note-action--danger) {
+    background: #3b222c;
+    border-color: #9f5b69;
+    color: #ffb8c3;
+  }
+}

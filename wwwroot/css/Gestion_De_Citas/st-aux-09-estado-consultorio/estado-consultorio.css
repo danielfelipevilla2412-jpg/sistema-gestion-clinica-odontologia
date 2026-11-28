@@ -274,3 +274,27 @@ img { max-width: 100%; height: auto; display: block; }
 }
 /* Pequeña indentación visual para diferenciar sub-menú */
 .nav-group-items .nav-item { padding-left: 24px; }
+
+@media screen {
+  [data-st-theme="dark"] .main .status-options .status-option {
+    background: var(--st-bg);
+    color: var(--st-text);
+    border-color: var(--st-border);
+    transition-property: border-color;
+  }
+  [data-st-theme="dark"] .main .status-options .status-option:is(:hover, :focus-visible, .selected) {
+    background: var(--st-raised);
+    border-color: var(--st-link);
+  }
+  [data-st-theme="dark"] .main .status-options .status-option.selected {
+    box-shadow: inset 3px 0 var(--st-link);
+  }
+  [data-st-theme="dark"] .main .status-options .status-option:focus-visible {
+    outline-color: var(--st-link);
+  }
+  [data-st-theme="dark"] .main .progress-bar-bg { background: var(--st-raised); }
+  [data-st-theme="dark"] .main .today-appointment.selected {
+    background: var(--st-raised);
+    border-color: var(--st-link);
+  }
+}

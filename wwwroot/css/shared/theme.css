@@ -1,0 +1,341 @@
+/* The palette is scoped to screen UI so print styles keep their contrast. */
+.theme-toggle[hidden] { display: none; }
+.theme-toggle[data-theme-toggle] {
+  display: inline-grid;
+  place-items: center;
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px solid #64748b;
+  border-radius: 8px;
+  background: #f4f7fb;
+  color: #12335d;
+  cursor: pointer;
+  font: 700 20px/1 system-ui, sans-serif;
+}
+.theme-toggle[data-theme-toggle][hidden] { display: none; }
+/* Match the notification control inside the shared toolbar. */
+.lang-switcher-fixed > .theme-toggle[data-theme-toggle] {
+  min-width: 36px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #005ea4;
+}
+[data-st-theme="dark"] .lang-switcher-fixed > .theme-toggle {
+  color: var(--st-link);
+}
+.lang-switcher-fixed > .theme-toggle[data-theme-toggle]:hover {
+  background: rgb(66 133 237 / 16%);
+}
+.lang-switcher-fixed > .theme-toggle[data-theme-toggle]:focus-visible {
+  outline-offset: -2px;
+}
+
+.theme-toggle--standalone { position: fixed; top: 12px; right: 12px; z-index: 60; }
+[data-theme-toggle]:focus-visible { outline: 2px solid #4285ed; outline-offset: 3px; }
+
+@media screen {
+  html[data-st-theme="dark"] {
+    color-scheme: dark;
+    --st-bg: #0e1726;
+    --st-panel: #182539;
+    --st-raised: #22334a;
+    --st-text: #edf3fb;
+    --st-muted: #b6c6da;
+    --st-border: #465975;
+    --st-link: #9ac8ff;
+    --bg: var(--st-bg);
+    --bg-page: var(--st-bg);
+    --bg-card: var(--st-panel);
+    --surface: var(--st-panel);
+    --surface-2: var(--st-raised);
+    --on-surface: var(--st-text);
+    --text: var(--st-text);
+    --text-primary: var(--st-text);
+    --text-secondary: var(--st-muted);
+    --text-muted: var(--st-muted);
+    --muted: var(--st-muted);
+    --border: var(--st-border);
+    --border-color: var(--st-border);
+    --bs-body-bg: var(--st-bg);
+    --bs-body-color: var(--st-text);
+    --bs-border-color: var(--st-border);
+    --bs-secondary-color: var(--st-muted);
+    --bs-secondary-bg: var(--st-raised);
+    --bs-tertiary-bg: var(--st-panel);
+    --bs-link-color: var(--st-link);
+    background-color: var(--st-bg);
+  }
+
+  [data-st-theme="dark"] body {
+    background-color: var(--st-bg);
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] :is(
+    .card, .stat-card, .kpi-card, .panel, .dashboard-card, .form-card,
+    .table-card, .filters-card, .info-card, .service-card, .profile-card,
+    .module-card, .modal-content, .modal-box, .dropdown-menu, .popover,
+    .pqr-inbox-panel, .toast, .login-card, #site-header, .bg-white,
+    [class~="bg-white/90"], [class~="bg-[#f9f9ff]"]
+  ) {
+    background-color: var(--st-panel);
+    border-color: var(--st-border);
+    color: var(--st-text);
+    --white: var(--st-panel);
+  }
+
+  [data-st-theme="dark"] :is(.login-card, #site-header, .toast) {
+    --white: #fff;
+  }
+
+  [data-st-theme="dark"] :is(
+    h1, h2, h3, h4, h5, h6, .card-title, .modal-title, .form-label,
+    .text-dark, [class~="text-[#021c3a]"]
+  ):not(.text-white) {
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] :is(
+    .text-muted, .text-secondary, .card-subtitle, .form-text, .field-hint
+  ) { color: var(--st-muted) !important; }
+
+  [data-st-theme="dark"] :is(
+    input:not([type]), input[type="text"], input[type="email"],
+    input[type="search"], input[type="password"], input[type="number"],
+    input[type="tel"], input[type="date"], input[type="time"], select, textarea
+  ) {
+    color: var(--st-text);
+    background-color: var(--st-bg);
+    border-color: var(--st-border);
+  }
+
+  [data-st-theme="dark"] :is(input, textarea)::placeholder {
+    color: var(--st-muted);
+  }
+
+  [data-st-theme="dark"] :is(input, select, textarea):focus {
+    color: var(--st-text);
+    background-color: var(--st-bg);
+    border-color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] :is(input, select, textarea):disabled {
+    color: var(--st-muted);
+    background-color: var(--st-raised);
+  }
+
+  [data-st-theme="dark"] :is(table, tbody, tbody tr, td) {
+    --bs-table-bg: var(--st-panel);
+    --bs-table-color: var(--st-text);
+    --bs-table-striped-bg: var(--st-raised);
+    --bs-table-striped-color: var(--st-text);
+    --bs-table-hover-bg: var(--st-raised);
+    --bs-table-hover-color: var(--st-text);
+    background-color: var(--st-panel);
+    border-color: var(--st-border);
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] :is(thead, th, tbody tr:hover, tbody tr:hover td) {
+    background-color: var(--st-raised);
+    border-color: var(--st-border);
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] :is(.item, .dropdown-item, #site-header .nav-link) {
+    color: var(--st-link);
+    border-color: var(--st-border);
+  }
+
+  [data-st-theme="dark"] .public-site :is(
+    [class~="text-[#002a58]"], [class~="text-[#424750]"], .text-slate-700, .text-slate-800
+  ) { color: var(--st-text); }
+
+  [data-st-theme="dark"] .public-site :is([class~="text-[#005ea4]"], .text-slate-500) {
+    color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .public-site :is(.bg-slate-100, [class~="hover:bg-slate-100"]:hover) {
+    background-color: var(--st-raised);
+  }
+
+
+  /* Legacy module styles use --white for surfaces. Scope the override to
+     application content so branding, sidebar icons and auth text keep white. */
+  [data-st-theme="dark"] :is(.main, .site-footer) {
+    --white: var(--st-panel);
+    --bg-soft: var(--st-raised);
+    --appt-available-bg: var(--st-bg);
+    --appt-available-text: var(--st-muted);
+    --appt-available-border: var(--st-border);
+  }
+
+  [data-st-theme="dark"] .main :is(
+    .filters-row, .filters-bar, .search-wrap, .table-section, .table-container,
+    .table-footer, .pagination, .legend-section, .progress-row, .config-card,
+    .detail-panel, .main-form, .pqr-detail-modal, .report-alert-panel,
+    .clinic-hours-banner, .agenda-availability, .availability-professional,
+    .week-nav, .calendar-section, .calendar-scroll-wrapper, .calendar-header,
+    .calendar-day-header, .calendar-day, .chart-card, .recepcion-report__card,
+    .professional-reports__panel, .professional-reports__dialog
+  ) {
+    background: var(--st-panel);
+    border-color: var(--st-border);
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] .main .search-wrap {
+    background: var(--st-bg);
+  }
+
+  [data-st-theme="dark"] .main .search-wrap input {
+    background: transparent;
+    border-color: transparent;
+  }
+
+  [data-st-theme="dark"] .main .search-wrap:focus-within {
+    border-color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .main :is(
+    .empty-state, .table-empty, .table-loading, .no-results,
+    .pqr-detail-response, .detail-stack, .detail-metadata,
+    .recepcion-report__agenda-empty, .recepcion-report__upcoming .recepcion-report__upcoming-list li
+  ) {
+    background: var(--st-raised);
+    border-color: var(--st-border);
+    color: var(--st-muted);
+  }
+
+  [data-st-theme="dark"] .main :is(
+    .empty-state p, .empty-state-desc, .form-help, .pqr-account-data dt,
+    .pqr-account-data dd, .clinic-hours-banner p
+  ) {
+    color: var(--st-muted);
+  }
+
+  [data-st-theme="dark"] .main :is(
+    .table-header, .table-base th, .table-appointments thead th, .recepcion-report th
+  ) {
+    background: var(--st-raised);
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] .main :is(
+    .table-base tbody tr:hover > :is(th, td),
+    .table-base tbody tr:focus-within > :is(th, td),
+    .table-appointments tbody tr:hover td,
+    .table-row:hover
+  ) {
+    background: var(--st-raised);
+  }
+
+  [data-st-theme="dark"] .main :is(.panel-header, .panel-close, .toggle-dot, .toggle-slider) {
+    --white: #fff;
+  }
+
+  /* The row heading in the role matrix has an ID-scoped style in Razor. */
+  [data-st-theme="dark"] #main-content .table-base tbody .role-matrix-action {
+    background: transparent;
+    color: var(--st-text);
+  }
+
+  [data-st-theme="dark"] #main-content .table-base tbody tr:is(:hover, :focus-within) .role-matrix-action {
+    background: var(--st-raised);
+  }
+
+  [data-st-theme="dark"] .main :is(
+    .btn-secondary, .btn-secondary:disabled, .btn-view-pqr, .table-container .btn-icon,
+    .pqr-page-button:not(.active), .report-alert-close, input[type="file"]
+  ) {
+    background: var(--st-bg);
+    border-color: var(--st-border);
+    color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .main :is(.btn-secondary, .btn-view-pqr):hover:not(:disabled) {
+    background: var(--st-raised);
+  }
+
+  [data-st-theme="dark"] .main :is(.badge-alerta.no, .calendar-day.closed, .calendar-day-header.closed, .day-closed) {
+    background: var(--st-bg);
+    color: var(--st-muted);
+  }
+
+  [data-st-theme="dark"] .main :is(.calendar-day.current, .calendar-day-header.current) {
+    background: var(--st-raised);
+  }
+
+  [data-st-theme="dark"] .main :is(.calendar-day-header.current .day-name, .calendar-day-header.current .day-number) {
+    color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .main :is(.bar-chart, .progress-track) {
+    background: var(--st-bg);
+  }
+
+  [data-st-theme="dark"] .main :is(
+    .bar-group__value, .donut-highlight, .donut-legend__pct
+  ) {
+    color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .main :is(.bar--current, .progress-fill--programadas) {
+    background-color: #5c9dff;
+  }
+
+  [data-st-theme="dark"] .site-footer,
+  [data-st-theme="dark"] body:has(.main) .lang-switcher-fixed {
+    background: var(--st-panel);
+    border-color: var(--st-border);
+    color: var(--st-muted);
+  }
+
+  [data-st-theme="dark"] body:has(.main) .lang-btn:not([aria-pressed="true"]),
+  [data-st-theme="dark"] body:has(.main) .pqr-inbox > summary {
+    color: var(--st-link);
+  }
+
+  [data-st-theme="dark"] .login-bg {
+    background: radial-gradient(ellipse at 75% 20%, #183c66, var(--st-bg) 66%);
+  }
+
+  [data-st-theme="dark"] .theme-toggle {
+    background: var(--st-raised);
+    color: var(--st-text);
+    border-color: var(--st-border);
+  }
+}
+
+@media print {
+  [data-theme-toggle] { display: none !important; }
+}
+
+@media screen {
+  /* Avoid interpolating legacy light surfaces during hover and data refresh. */
+  [data-st-theme="dark"] .main :is(.table-base, .table-appointments) :is(tr, th, td),
+  [data-st-theme="dark"] .main :is(.search-wrap, .no-results, .empty-state) {
+    transition-property: box-shadow, transform;
+  }
+}
+
+@media screen {
+  .main.audit-page .table-base td.actions-cell,
+  .main.history-page .table-base td.actions-cell {
+    display: table-cell;
+    vertical-align: middle;
+    text-align: right;
+  }
+  [data-st-theme="dark"] .main:is(.audit-page, .history-page) .table-base tbody tr:is(:hover, :focus-within) {
+    background: var(--st-raised);
+  }
+}
+@media screen and (max-width: 680px) {
+  .main.history-page .table-base td.actions-cell {
+    display: grid;
+    text-align: start;
+  }
+}

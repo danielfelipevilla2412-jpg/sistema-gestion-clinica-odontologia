@@ -91,8 +91,7 @@ const profileStorage = {
       fechaIngreso: '2024-01-01',
       telefono: '312456 7890',
       email: 'auxiliar@smiletrack.co',
-      avatar: 'SJ',
-      passwordLastChanged: null
+      avatar: 'SJ'
     };
   },
   
@@ -112,34 +111,9 @@ const profileStorage = {
     const requiredFields = ['nombres', 'apellidos', 'tipoDoc', 'numeroDoc', 'telefono', 'email'];
     const filled = requiredFields.filter(field => profile[field]?.trim()).length;
     return Math.round((filled / requiredFields.length) * 100);
-  },
-  
-  // Actualiza contraseña y registra fecha de cambio
-  updatePassword: () => {
-    const profile = profileStorage.load();
-    profile.passwordLastChanged = new Date().toISOString();
-    profileStorage.save(profile);
   }
 };
 
-// Calcula fuerza de contraseña con criterios de seguridad
-const calculatePasswordStrength = (password) => {
-  let score = 0;
-  
-  // Longitud
-  if (password.length >= 8) score += 1;
-  if (password.length >= 12) score += 1;
-  
-  // Complejidad
-  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score += 1;
-  if (/\d/.test(password)) score += 1;
-  if (/[^a-zA-Z0-9]/.test(password)) score += 1;
-  
-  // Determina nivel y etiqueta
-  if (score <= 2) return { class: 'weak', label: 'Débil', percentage: 33 };
-  if (score <= 4) return { class: 'medium', label: 'Media', percentage: 66 };
-  return { class: 'strong', label: 'Fuerte', percentage: 100 };
-};
 
 // Inicializa menú móvil con gestión de foco y atributos ARIA
 const initMobileMenu = () => {
@@ -237,173 +211,8 @@ const initGreeting = () => {
   greetingEl.setAttribute('aria-label', `Saludo: ${greeting} ${profile.nombres}`);
 };
 
-// Inicializa toggle de visibilidad de contraseñas con accesibilidad
-const initPasswordToggles = () => {
-  const toggles = [
-    { btn: safeGetElement('toggleCurrent'), input: safeGetElement('currentPassword') },
-    { btn: safeGetElement('toggleNew'), input: safeGetElement('newPassword') },
-    { btn: safeGetElement('toggleConfirm'), input: safeGetElement('confirmPassword') }
-  ];
-  
-  toggles.forEach(({ btn, input }) => {
-    if (!btn || !input) return;
-    
-    btn.addEventListener('click', () => {
-      const isPassword = input.type === 'password';
-      input.type = isPassword ? 'text' : 'password';
-      btn.setAttribute('aria-pressed', !isPassword);
-      btn.setAttribute('aria-label', `${isPassword ? 'Ocultar' : 'Mostrar'} contraseña`);
-      btn.textContent = isPassword ? '🙈' : '👁';
-    });
-    
-    // Soporte para teclado
-    btn.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        btn.click();
-      }
-    });
-  });
-};
 
-// Inicializa indicador de fuerza de contraseña con feedback accesible
-const initPasswordStrength = () => {
-  const input = safeGetElement('newPassword');
-  const indicator = safeGetElement('passwordStrength');
-  const strengthText = safeGetElement('strengthText');
-  
-  if (!input || !indicator) return;
-  
-  input.addEventListener('input', () => {
-    const value = input.value;
-    
-    if (!value) {
-      indicator.className = 'password-strength';
-      indicator.setAttribute('aria-valuenow', '0');
-      indicator.setAttribute('aria-label', 'Fortaleza de contraseña: Sin ingresar');
-      if (strengthText) strengthText.textContent = 'Sin ingresar';
-      return;
-    }
-    
-    const strength = calculatePasswordStrength(value);
-    
-    // Actualiza indicador visual
-    indicator.className = `password-strength ${strength.class}`;
-    indicator.setAttribute('aria-valuenow', strength.percentage);
-    indicator.setAttribute('aria-label', `Fortaleza de contraseña: ${strength.label}`);
-    
-    // Actualiza texto para screen readers
-    if (strengthText) {
-      strengthText.textContent = strength.label;
-    }
-  });
-};
 
-// Inicializa formulario de cambio de contraseña con validación
-const initPasswordForm = () => {
-  const form = safeGetElement('passwordForm');
-  if (!form) return;
-  
-  // Validación en tiempo real
-  form.querySelectorAll('input[required]').forEach(input => {
-    input.addEventListener('blur', () => validateField(input));
-    input.addEventListener('input', () => {
-      if (input.classList.contains('error')) validateField(input);
-    });
-  });
-  
-  // Validación de confirmación al perder foco
-  const confirmInput = safeGetElement('confirmPassword');
-  const newInput = safeGetElement('newPassword');
-  
-  if (confirmInput && newInput) {
-    confirmInput.addEventListener('blur', () => {
-      if (newInput.value && confirmInput.value && newInput.value !== confirmInput.value) {
-        confirmInput.classList.add('error');
-        safeGetElement('error-confirmPassword')?.classList.add('visible');
-        confirmInput.setAttribute('aria-invalid', 'true');
-      }
-    });
-    
-    confirmInput.addEventListener('input', () => {
-      if (newInput.value === confirmInput.value) {
-        confirmInput.classList.remove('error');
-        safeGetElement('error-confirmPassword')?.classList.remove('visible');
-        confirmInput.removeAttribute('aria-invalid');
-      }
-    });
-  }
-  
-  // Manejo de envío del formulario
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    
-    if (!validateForm(form)) {
-      showToast('Completa los campos requeridos', 'warning');
-      return;
-    }
-    
-    const current = safeGetElement('currentPassword')?.value;
-    const newPass = safeGetElement('newPassword')?.value;
-    const confirm = safeGetElement('confirmPassword')?.value;
-    
-    // Validaciones adicionales
-    if (current?.length < 6) {
-      showToast('Contraseña actual muy corta', 'error');
-      return;
-    }
-    
-    if (newPass?.length < 8) {
-      showToast('Nueva contraseña debe tener ≥8 caracteres', 'error');
-      return;
-    }
-    
-    if (newPass !== confirm) {
-      showToast('Las contraseñas no coinciden', 'error');
-      return;
-    }
-    
-    if (current === newPass) {
-      showToast('La nueva contraseña debe ser diferente', 'warning');
-      return;
-    }
-    
-    // Simula actualización de contraseña
-    const btn = safeGetElement('btnUpdatePassword');
-    if (btn) {
-      const original = btn.textContent;
-      btn.textContent = '⏳ Actualizando...';
-      btn.disabled = true;
-      
-      setTimeout(() => {
-        // Guarda fecha de cambio en perfil
-        profileStorage.updatePassword();
-        
-        // Feedback visual
-        btn.textContent = '✓ Contraseña actualizada';
-        btn.style.background = '#16a34a';
-        showToast('✅ Contraseña actualizada exitosamente', 'success');
-        
-        // Limpia formulario
-        form.reset();
-        if (safeGetElement('passwordStrength')) {
-          safeGetElement('passwordStrength').className = 'password-strength';
-        }
-        document.querySelectorAll('.toggle-password').forEach(b => {
-          b.textContent = '👁';
-          b.setAttribute('aria-pressed', 'false');
-        });
-        
-        // Restaura botón
-        setTimeout(() => {
-          btn.textContent = original;
-          btn.disabled = false;
-          btn.style.background = '';
-        }, 2000);
-      }, 1500);
-    }
-  });
-};
 
 // Inicializa botón de edición de perfil (mock para futura implementación)
 const initEditProfile = () => {
@@ -421,9 +230,6 @@ const init = () => {
   initMobileMenu();
   initUserProfile();
   initGreeting();
-  initPasswordToggles();
-  initPasswordStrength();
-  initPasswordForm();
   initEditProfile();
   
   // Limpieza de listeners al unload para evitar memory leaks

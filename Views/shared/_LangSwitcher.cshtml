@@ -16,7 +16,8 @@
 @* ── Conmutador Internacional de Idioma (ES / EN) ── *@
 @* ── Conmutador Internacional de Idioma (ES / EN) ── *@
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery PqrAntiforgery
-<div class="lang-switcher-fixed" role="group" aria-label="Idioma y avisos">
+<div class="lang-switcher-fixed" role="group" aria-label="Idioma, apariencia y avisos">
+  <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Modo oscuro" hidden><span data-theme-icon aria-hidden="true"></span></button>
   @{
       var pqrAdmin = User.IsInRole("Administrador");
       var pqrSoporte = User.IsInRole("Profesional") || User.IsInRole("Auxiliar") || User.IsInRole("Recepcionista");

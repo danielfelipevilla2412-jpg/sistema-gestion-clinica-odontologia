@@ -822,3 +822,33 @@ tbody tr.selected {
 .mb-20 {
     margin-bottom: 20px;
 }
+
+@media screen {
+    [data-st-theme="dark"] .pqr-page .status-btn {
+        background: var(--st-bg);
+        color: var(--st-text);
+        border-color: var(--st-border);
+        transition: none;
+    }
+
+    [data-st-theme="dark"] .pqr-page .status-btn:not(.active):is(:hover, :focus-visible) {
+        background: var(--st-raised);
+        border-color: var(--st-link);
+    }
+
+    [data-st-theme="dark"] .pqr-page .status-btn:focus-visible {
+        outline: 2px solid var(--st-link);
+        outline-offset: 2px;
+    }
+
+    [data-st-theme="dark"] .pqr-page .status-btn.active {
+        background: var(--st-raised);
+        color: var(--pqr-status-color, var(--st-link));
+        border-color: currentColor;
+    }
+
+    [data-st-theme="dark"] .pqr-page .status-btn.proceso { --pqr-status-color: #ffd18a; }
+    [data-st-theme="dark"] .pqr-page .status-btn.resuelto { --pqr-status-color: #8ce8b6; }
+    [data-st-theme="dark"] .pqr-page .status-btn.cerrado { --pqr-status-color: #c5d0df; }
+    [data-st-theme="dark"] .pqr-page .status-btn.rechazado { --pqr-status-color: #ffaaaa; }
+}

@@ -88,42 +88,6 @@
         </form>
       </section>
 
-      <!-- Sección: Cambiar contraseña -->
-      <section class="profile-form password-section" aria-labelledby="passwordTitle">
-        <h3 class="password-section-title" id="passwordTitle">
-          <span class="material-symbols-outlined" aria-hidden="true">lock</span>
-          <span data-i18n="rec_profile.change_password">Cambiar contraseña</span>
-        </h3>
-        <form id="passwordForm" class="modal-form" novalidate>
-          <div class="form-grid">
-            <div class="form-group">
-              <label class="form-label" for="currentPassword" data-i18n="pac_profile.current_password">Contraseña actual</label>
-              <input type="password" id="currentPassword" name="currentPassword" class="form-input"
-                placeholder="" autocomplete="current-password" required />
-              <span class="error-message" id="error-currentPassword" data-i18n="rec_profile.error_current_password">Por favor ingresa tu contraseña actual</span>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="newPassword" data-i18n="pac_profile.new_password">Nueva contraseña</label>
-              <input type="password" id="newPassword" name="newPassword" class="form-input"
-                placeholder="" autocomplete="new-password" required minlength="8" />
-              <span class="error-message" id="error-newPassword" data-i18n="common.password_min">Mínimo 8 caracteres</span>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="confirmPassword" data-i18n="common.confirm_password">Confirmar nueva contraseña</label>
-              <input type="password" id="confirmPassword" name="confirmPassword" class="form-input"
-                placeholder="" autocomplete="new-password" required />
-              <span class="error-message" id="error-confirmPassword" data-i18n="common.password_mismatch">Las contraseñas no coinciden</span>
-            </div>
-          </div>
-          <div class="form-actions">
-            <button type="submit" class="btn-success" id="btnChangePassword">
-              <span class="material-symbols-outlined" aria-hidden="true">lock</span>
-              <span data-i18n="rec_profile.update_password">Actualizar contraseña</span>
-            </button>
-          </div>
-        </form>
-      </section>
-
       <!-- Sección: Preferencias -->
       <section class="profile-form preferences-section" aria-labelledby="preferencesTitle">
         <h3 class="profile-form-title" id="preferencesTitle">
@@ -158,10 +122,7 @@
             <p class="preference-label" data-i18n="rec_profile.dark_mode">Modo oscuro</p>
             <p class="preference-desc" data-i18n="rec_profile.dark_mode_desc">Activar tema oscuro en la interfaz</p>
           </div>
-          <button class="toggle-switch" id="toggleDark" type="button" role="switch" aria-checked="false"
-            aria-label="Activar modo oscuro" data-i18n-aria-label="rec_profile.dark_mode_aria">
-            <span class="visually-hidden" data-i18n="rec_profile.dark_mode_state">Modo oscuro: desactivado</span>
-          </button>
+          <button class="toggle-switch" type="button" role="switch" data-theme-toggle aria-checked="false" aria-label="Modo oscuro" hidden></button>
         </div>
       </section>
 
